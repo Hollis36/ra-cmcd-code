@@ -1,0 +1,335 @@
+# Reliability-aware dataloader and loss for RA-CMCD
+# Patch against the YOLOv11-RGBT fork at commit 9cc2e20 (Ultralytics 8.3.75).
+# Apply with:  git checkout 9cc2e20 && git apply racmcd_yolov11_rgbt_9cc2e20.patch
+# The fork and Ultralytics are AGPL-3.0; this patch inherits that licence.
+diff --git a/ultralytics/data/augment.py b/ultralytics/data/augment.py
+index cdb2938..70051b1 100644
+--- a/ultralytics/data/augment.py
++++ b/ultralytics/data/augment.py
+@@ -1281,6 +1281,8 @@ class RandomPerspective:
+         )
+         labels["instances"] = new_instances[i]
+         labels["cls"] = cls[i]
++        if "reliability" in labels:
++            labels["reliability"] = labels["reliability"][i]
+         labels["img"] = img
+         labels["resized_shape"] = img.shape[:2]
+         return labels
+@@ -2975,10 +2977,13 @@ class Format:
+         img = labels.pop("img")
+         h, w = img.shape[:2]
+         cls = labels.pop("cls")
++        reliability = labels.pop("reliability", None)
+         instances = labels.pop("instances")
+         instances.convert_bbox(format=self.bbox_format)
+         instances.denormalize(w, h)
+         nl = len(instances)
++        if reliability is None or len(reliability) != nl:
++            reliability = np.ones((nl, 1), dtype=np.float32)
+ 
+         if self.return_mask:
+             if nl:
+@@ -2991,6 +2996,7 @@ class Format:
+             labels["masks"] = masks
+         labels["img"] = self._format_img(img)
+         labels["cls"] = torch.from_numpy(cls) if nl else torch.zeros(nl)
++        labels["reliability"] = torch.from_numpy(reliability.astype(np.float32)) if nl else torch.zeros((nl, 1))
+         labels["bboxes"] = torch.from_numpy(instances.bboxes) if nl else torch.zeros((nl, 4))
+         if self.return_keypoint:
+             labels["keypoints"] = torch.from_numpy(instances.keypoints)
+@@ -3247,16 +3253,19 @@ class Mosaic(BaseMixTransform):
+         for labels in mosaic_labels:
+             cls.append(labels['cls'])
+             instances.append(labels['instances'])
++        reliability = [labels.get('reliability', np.ones((len(labels['cls']), 1), dtype=np.float32)) for labels in mosaic_labels]
+         final_labels = {
+             'im_file': mosaic_labels[0]['im_file'],
+             'ori_shape': mosaic_labels[0]['ori_shape'],
+             'resized_shape': (imgsz, imgsz),
+             'cls': np.concatenate(cls, 0),
++            'reliability': np.concatenate(reliability, 0),
+             'instances': Instances.concatenate(instances, axis=0),
+             'mosaic_border': self.border}  # final_labels
+         final_labels['instances'].clip(imgsz, imgsz)
+         good = final_labels['instances'].remove_zero_area_boxes()
+         final_labels['cls'] = final_labels['cls'][good]
++        final_labels['reliability'] = final_labels['reliability'][good]
+         return final_labels
+ 
+ class MixUp(BaseMixTransform):
+@@ -3275,6 +3284,9 @@ class MixUp(BaseMixTransform):
+         labels['img'] = (labels['img'] * r + labels2['img'] * (1 - r)).astype(self.dtype)
+         labels['instances'] = Instances.concatenate([labels['instances'], labels2['instances']], axis=0)
+         labels['cls'] = np.concatenate([labels['cls'], labels2['cls']], 0)
++        rel1 = labels.get('reliability', np.ones((len(labels['cls']) - len(labels2['cls']), 1), dtype=np.float32))
++        rel2 = labels2.get('reliability', np.ones((len(labels2['cls']), 1), dtype=np.float32))
++        labels['reliability'] = np.concatenate([rel1, rel2], 0)
+         return labels
+ 
+ class RandomHSV:
+@@ -3349,6 +3361,7 @@ class CopyPaste:
+         instances = labels.pop('instances')
+         instances.convert_bbox(format='xyxy')
+         instances.denormalize(w, h)
++        reliability = labels.get('reliability', np.ones((len(cls), 1), dtype=np.float32))
+         if self.p and len(instances.segments):
+             n = len(instances)
+             _, w, _ = im.shape  # height, width, channels
+@@ -3363,6 +3376,7 @@ class CopyPaste:
+             n = len(indexes)
+             for j in random.sample(list(indexes), k=round(self.p * n)):
+                 cls = np.concatenate((cls, cls[[j]]), axis=0)
++                reliability = np.concatenate((reliability, reliability[[j]]), axis=0)
+                 instances = Instances.concatenate((instances, ins_flip[[j]]), axis=0)
+                 cv2.drawContours(im_new, instances.segments[[j]].astype(np.int32), -1, (1, 1, 1), cv2.FILLED)
+ 
+@@ -3372,6 +3386,8 @@ class CopyPaste:
+ 
+         labels['img'] = im
+         labels['cls'] = cls
++        if 'reliability' in labels:
++            labels['reliability'] = reliability
+         labels['instances'] = instances
+         return labels
+ 
+diff --git a/ultralytics/data/base.py b/ultralytics/data/base.py
+index 26de300..6490106 100644
+--- a/ultralytics/data/base.py
++++ b/ultralytics/data/base.py
+@@ -162,11 +162,14 @@ class BaseDataset(Dataset):
+             if include_class is not None:
+                 cls = self.labels[i]["cls"]
+                 bboxes = self.labels[i]["bboxes"]
++                reliability = self.labels[i].get("reliability")
+                 segments = self.labels[i]["segments"]
+                 keypoints = self.labels[i]["keypoints"]
+                 j = (cls == include_class_array).any(1)
+                 self.labels[i]["cls"] = cls[j]
+                 self.labels[i]["bboxes"] = bboxes[j]
++                if reliability is not None:
++                    self.labels[i]["reliability"] = reliability[j]
+                 if segments:
+                     self.labels[i]["segments"] = [segments[si] for si, idx in enumerate(j) if idx]
+                 if keypoints is not None:
+@@ -513,4 +516,4 @@ def SimOTMBrights(img):
+     result = cv2.merge([img, blur, rec])
+     return result
+ 
+-#------------------------------------------------------------------------------
+\ No newline at end of file
++#------------------------------------------------------------------------------
+diff --git a/ultralytics/data/dataset.py b/ultralytics/data/dataset.py
+index 47960cb..16ccfdb 100644
+--- a/ultralytics/data/dataset.py
++++ b/ultralytics/data/dataset.py
+@@ -1,6 +1,7 @@
+ # Ultralytics 馃殌 AGPL-3.0 License - https://ultralytics.com/license
+ 
+ import json
++import os
+ from collections import defaultdict
+ from itertools import repeat
+ from multiprocessing.pool import ThreadPool
+@@ -39,7 +40,37 @@ from .utils import (
+ )
+ from ultralytics.utils.patches import imread
+ # Ultralytics dataset *.cache version, >= 1.0.0 for YOLOv8
+-DATASET_CACHE_VERSION = "1.0.3"
++DATASET_CACHE_VERSION = "1.0.4"
++
++
++def scored_label_path(label_file):
++    """Return optional CMCD scored-label path for a standard YOLO label path."""
++    label_file = str(label_file)
++    src = f"{os.sep}labels{os.sep}"
++    dst = f"{os.sep}labels_scored{os.sep}"
++    if src not in label_file:
++        return label_file
++    return label_file.replace(src, dst, 1)
++
++
++def load_label_reliability(label_file, n_labels):
++    """Load per-box teacher reliability from labels_scored, defaulting to ones."""
++    default = np.ones((n_labels, 1), dtype=np.float32)
++    if n_labels == 0:
++        return np.zeros((0, 1), dtype=np.float32)
++
++    scored_file = scored_label_path(label_file)
++    if scored_file == str(label_file) or not Path(scored_file).is_file():
++        return default
++
++    rows = []
++    with open(scored_file) as f:
++        for line in f.read().strip().splitlines():
++            if line.strip():
++                rows.append(line.split())
++    if len(rows) != n_labels or any(len(row) < 7 for row in rows):
++        return default
++    return np.array([[float(row[6])] for row in rows], dtype=np.float32).clip(0.0, 1.0)
+ 
+ 
+ class YOLODataset(BaseDataset):
+@@ -97,7 +128,7 @@ class YOLODataset(BaseDataset):
+                 ),
+             )
+             pbar = TQDM(results, desc=desc, total=total)
+-            for im_file, lb, shape, segments, keypoint, nm_f, nf_f, ne_f, nc_f, msg in pbar:
++            for idx, (im_file, lb, shape, segments, keypoint, nm_f, nf_f, ne_f, nc_f, msg) in enumerate(pbar):
+                 nm += nm_f
+                 nf += nf_f
+                 ne += ne_f
+@@ -109,6 +140,7 @@ class YOLODataset(BaseDataset):
+                             "shape": shape,
+                             "cls": lb[:, 0:1],  # n, 1
+                             "bboxes": lb[:, 1:],  # n, 4
++                            "reliability": load_label_reliability(self.label_files[idx], len(lb)),
+                             "segments": segments,
+                             "keypoints": keypoint,
+                             "normalized": True,
+@@ -124,7 +156,8 @@ class YOLODataset(BaseDataset):
+             LOGGER.info("\n".join(msgs))
+         if nf == 0:
+             LOGGER.warning(f"{self.prefix}WARNING 鈿狅笍 No labels found in {path}. {HELP_URL}")
+-        x["hash"] = get_hash(self.label_files + self.im_files)
++        scored_label_files = [scored_label_path(x) for x in self.label_files]
++        x["hash"] = get_hash(self.label_files + scored_label_files + self.im_files)
+         x["results"] = nf, nm, ne, nc, len(self.im_files)
+         x["msgs"] = msgs  # warnings
+         save_dataset_cache_file(self.prefix, path, x, DATASET_CACHE_VERSION)
+@@ -133,11 +166,12 @@ class YOLODataset(BaseDataset):
+     def get_labels(self):
+         """Returns dictionary of labels for YOLO training."""
+         self.label_files = img2label_paths(self.im_files)
++        self.scored_label_files = [scored_label_path(x) for x in self.label_files]
+         cache_path = Path(self.label_files[0]).parent.with_suffix(".cache")
+         try:
+             cache, exists = load_dataset_cache_file(cache_path), True  # attempt to load a *.cache file
+             assert cache["version"] == DATASET_CACHE_VERSION  # matches current version
+-            assert cache["hash"] == get_hash(self.label_files + self.im_files)  # identical hash
++            assert cache["hash"] == get_hash(self.label_files + self.scored_label_files + self.im_files)  # identical hash
+         except (FileNotFoundError, AssertionError, AttributeError):
+             cache, exists = self.cache_labels(cache_path), False  # run cache ops
+ 
+@@ -238,7 +272,7 @@ class YOLODataset(BaseDataset):
+             value = values[i]
+             if k == "img":
+                 value = torch.stack(value, 0)
+-            if k in {"masks", "keypoints", "bboxes", "cls", "segments", "obb"}:
++            if k in {"masks", "keypoints", "bboxes", "cls", "reliability", "segments", "obb"}:
+                 value = torch.cat(value, 0)
+             new_batch[k] = value
+         new_batch["batch_idx"] = list(new_batch["batch_idx"])
+@@ -634,4 +668,4 @@ class ClassificationDataset:
+         b, g, r = cv2.split(im_visible)
+         b2, g2, r2 = cv2.split(im_infrared)
+         im = cv2.merge((b, g, r, b2, g2, r2))
+-        return im
+\ No newline at end of file
++        return im
+diff --git a/ultralytics/utils/loss.py b/ultralytics/utils/loss.py
+index ca41184..067cc62 100644
+--- a/ultralytics/utils/loss.py
++++ b/ultralytics/utils/loss.py
+@@ -458,6 +458,22 @@ class v8DetectionLoss:
+             out[..., 1:5] = xywh2xyxy(out[..., 1:5].mul_(scale_tensor))
+         return out
+ 
++    def reliability_targets(self, batch):
++        """Return per-box CMCD reliability, defaulting to 1 for ordinary labels."""
++        reliability = batch.get("reliability")
++        if reliability is None:
++            reliability = torch.ones_like(batch["cls"])
++        return reliability.view(-1, 1).to(batch["cls"].device, non_blocking=True).clamp_(0.0, 1.0)
++
++    @staticmethod
++    def apply_reliability_to_scores(target_scores, target_gt_idx, gt_reliability):
++        """Weight positive assigned anchors by their matched teacher reliability."""
++        if gt_reliability.numel() == 0 or gt_reliability.shape[1] == 0:
++            return target_scores
++        indices = target_gt_idx.clamp(0, gt_reliability.shape[1] - 1)
++        weights = gt_reliability.squeeze(-1).gather(1, indices).unsqueeze(-1)
++        return target_scores * weights.to(target_scores.dtype)
++
+     def bbox_decode(self, anchor_points, pred_dist):
+         """Decode predicted object bounding box coordinates from anchor points and distribution."""
+         if self.use_dfl:
+@@ -491,9 +507,17 @@ class v8DetectionLoss:
+         anchor_points, stride_tensor = make_anchors(feats, self.stride, 0.5)
+ 
+         # targets
+-        targets = torch.cat((batch['batch_idx'].view(-1, 1), batch['cls'].view(-1, 1), batch['bboxes']), 1)
++        targets = torch.cat(
++            (
++                batch['batch_idx'].view(-1, 1),
++                batch['cls'].view(-1, 1),
++                batch['bboxes'],
++                self.reliability_targets(batch),
++            ),
++            1,
++        )
+         targets = self.preprocess(targets.to(self.device), batch_size, scale_tensor=imgsz[[1, 0, 1, 0]])
+-        gt_labels, gt_bboxes = targets.split((1, 4), 2)  # cls, xyxy
++        gt_labels, gt_bboxes, gt_reliability = targets.split((1, 4, 1), 2)  # cls, xyxy, reliability
+         mask_gt = gt_bboxes.sum(2, keepdim=True).gt_(0)
+ 
+         # pboxes
+@@ -504,15 +528,17 @@ class v8DetectionLoss:
+             anchors, _, n_anchors_list, _ = \
+                 generate_anchors(feats, self.fpn_strides, self.grid_cell_size, self.grid_cell_offset,
+                                  device=feats[0].device)
+-            target_labels, target_bboxes, target_scores, fg_mask, _ = self.assigner(anchors, n_anchors_list, gt_labels,
+-                                                                                    gt_bboxes, mask_gt,
+-                                                                                    pred_bboxes.detach() * stride_tensor)
++            target_labels, target_bboxes, target_scores, fg_mask, target_gt_idx = self.assigner(anchors, n_anchors_list,
++                                                                                                gt_labels, gt_bboxes,
++                                                                                                mask_gt,
++                                                                                                pred_bboxes.detach() * stride_tensor)
+         # TAL
+         else:
+-            target_labels, target_bboxes, target_scores, fg_mask, _ = self.assigner(
++            target_labels, target_bboxes, target_scores, fg_mask, target_gt_idx = self.assigner(
+                 pred_scores.detach().sigmoid(), (pred_bboxes.detach() * stride_tensor).type(gt_bboxes.dtype),
+                 anchor_points * stride_tensor, gt_labels, gt_bboxes, mask_gt)
+ 
++        target_scores = self.apply_reliability_to_scores(target_scores, target_gt_idx, gt_reliability)
+         target_scores_sum = max(target_scores.sum(), 1)
+ 
+         # cls loss
+@@ -600,23 +626,33 @@ class v8DetectionLoss:
+         anchor_points, stride_tensor = make_anchors(feats, self.stride, 0.5)
+ 
+         # targets
+-        targets = torch.cat((batch['batch_idx'].view(-1, 1), batch['cls'].view(-1, 1), batch['bboxes']), 1)
++        targets = torch.cat(
++            (
++                batch['batch_idx'].view(-1, 1),
++                batch['cls'].view(-1, 1),
++                batch['bboxes'],
++                self.reliability_targets(batch),
++            ),
++            1,
++        )
+         targets = self.preprocess(targets.to(self.device), batch_size, scale_tensor=imgsz[[1, 0, 1, 0]])
+-        gt_labels, gt_bboxes = targets.split((1, 4), 2)  # cls, xyxy
++        gt_labels, gt_bboxes, gt_reliability = targets.split((1, 4, 1), 2)  # cls, xyxy, reliability
+         mask_gt = gt_bboxes.sum(2, keepdim=True).gt_(0)
+ 
+         # pboxes
+         pred_bboxes = self.bbox_decode(anchor_points, pred_distri)
+         pred_bboxes_aux = self.bbox_decode(anchor_points, pred_distri_aux)  # xyxy, (b, h*w, 4)
+ 
+-        target_labels, target_bboxes, target_scores, fg_mask, _ = self.assigner(pred_scores.detach().sigmoid(), (
++        target_labels, target_bboxes, target_scores, fg_mask, target_gt_idx = self.assigner(pred_scores.detach().sigmoid(), (
+                     pred_bboxes.detach() * stride_tensor).type(gt_bboxes.dtype),
+                                                                                 anchor_points * stride_tensor,
+                                                                                 gt_labels, gt_bboxes, mask_gt)
+-        target_labels_aux, target_bboxes_aux, target_scores_aux, fg_mask_aux, _ = self.assigner_aux(
++        target_labels_aux, target_bboxes_aux, target_scores_aux, fg_mask_aux, target_gt_idx_aux = self.assigner_aux(
+             pred_scores.detach().sigmoid(), (pred_bboxes.detach() * stride_tensor).type(gt_bboxes.dtype),
+             anchor_points * stride_tensor, gt_labels, gt_bboxes, mask_gt)
+ 
++        target_scores = self.apply_reliability_to_scores(target_scores, target_gt_idx, gt_reliability)
++        target_scores_aux = self.apply_reliability_to_scores(target_scores_aux, target_gt_idx_aux, gt_reliability)
+         target_scores_sum = max(target_scores.sum(), 1)
+         target_scores_sum_aux = max(target_scores_aux.sum(), 1)
+ 

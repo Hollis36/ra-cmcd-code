@@ -1,0 +1,44 @@
+{
+  "B": 10000,
+  "seed": 20260913,
+  "n_images": 8980,
+  "n_seeds": {
+    "plain": 4,
+    "weighted": 4,
+    "gt_only": 4
+  },
+  "point": {
+    "plain": 0.2363552404236539,
+    "weighted": 0.2936872894860508,
+    "gt_only": 0.24432479295279955
+  },
+  "contrasts": {
+    "weighted_vs_plain": {
+      "point_diff": 0.05733204906239686,
+      "diff_ci95": [
+        0.0555012397928294,
+        0.05916142388019523
+      ],
+      "p_one_sided_a_le_b": 0.0,
+      "positive_rate": 1.0
+    },
+    "weighted_vs_gt_only": {
+      "point_diff": 0.04936249653325123,
+      "diff_ci95": [
+        0.04731602024237067,
+        0.05137742748288547
+      ],
+      "p_one_sided_a_le_b": 0.0,
+      "positive_rate": 1.0
+    },
+    "plain_vs_gt_only": {
+      "point_diff": -0.007969552529145635,
+      "diff_ci95": [
+        -0.00990934861890112,
+        -0.005992275967502988
+      ],
+      "p_one_sided_a_le_b": 1.0,
+      "positive_rate": 0.0
+    }
+  }
+}

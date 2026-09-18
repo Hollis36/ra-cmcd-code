@@ -1,0 +1,40 @@
+{
+  "B": 10000,
+  "seed": 20260910,
+  "n_images": 1469,
+  "n_fused_boxes": 65667,
+  "priors": "pilot",
+  "construction": "global AP with the evaluator of rescore_eq3.py; true-positive flags precomputed per scoring; paired image-level resampling; reproduces rescore_eq3.json exactly at unit multiplicities",
+  "point": {
+    "plain": {
+      "map50": 0.7183791929490825,
+      "map50_95": 0.4860246558830748
+    },
+    "eq3": {
+      "map50": 0.7372240920388716,
+      "map50_95": 0.4978690284142679
+    }
+  },
+  "contrast_eq3_minus_plain": {
+    "map50": {
+      "point_diff": 0.018844899089789147,
+      "diff_ci95": [
+        0.010574712235953809,
+        0.030508958535316887
+      ],
+      "p_one_sided_eq3_le_plain": 0.0,
+      "positive_rate": 1.0,
+      "draw_mean": 0.018519627539665188
+    },
+    "map50_95": {
+      "point_diff": 0.011844372531193081,
+      "diff_ci95": [
+        0.006284265348708483,
+        0.019848703265235072
+      ],
+      "p_one_sided_eq3_le_plain": 0.0,
+      "positive_rate": 1.0,
+      "draw_mean": 0.011604287323558608
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "seed": 20260910,
+  "n_boot": 1000,
+  "n_images": 1469,
+  "unit": "image-level resampling with replacement over a per-image AP proxy; auxiliary stability check",
+  "observed_per_image_proxy": {
+    "delta_map50": 0.0021384611042980506,
+    "delta_map50_95": 0.001441332932898387
+  },
+  "map50": {
+    "mean": 0.0021063756512092143,
+    "ci95_low": 0.0011497698816489376,
+    "ci95_high": 0.003124435698271219,
+    "p_delta_gt_0": 1.0
+  },
+  "map50_95": {
+    "mean": 0.001413847595891408,
+    "ci95_low": 0.0007267572141633954,
+    "ci95_high": 0.0022204389775060383,
+    "p_delta_gt_0": 1.0
+  }
+}

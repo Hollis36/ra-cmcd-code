@@ -1,0 +1,5 @@
+path: <YOLO11_ROOT>/data/keyframes_split
+train: images/val_medium
+val: images/val_medium
+nc: 1
+names: [drone]

@@ -1,0 +1,58 @@
+{
+  "B": 2000,
+  "seed": 20260913,
+  "n_images": 8980,
+  "point_global_ap": {
+    "plain": 0.3803425459871468,
+    "weighted": 0.39843952088935547,
+    "gt_only": 0.3216299050632412,
+    "eq3": 0.39962747676016863
+  },
+  "contrasts": {
+    "weighted_vs_plain": {
+      "point_diff": 0.018096974902208685,
+      "diff_ci95": [
+        0.015134234354203151,
+        0.02088799179860951
+      ],
+      "p_one_sided_a_le_b": 0.0,
+      "positive_rate": 1.0
+    },
+    "weighted_vs_gt_only": {
+      "point_diff": 0.07680961582611429,
+      "diff_ci95": [
+        0.07272410026542563,
+        0.08079704964342348
+      ],
+      "p_one_sided_a_le_b": 0.0,
+      "positive_rate": 1.0
+    },
+    "plain_vs_gt_only": {
+      "point_diff": 0.0587126409239056,
+      "diff_ci95": [
+        0.054910914530822336,
+        0.06274001174603366
+      ],
+      "p_one_sided_a_le_b": 0.0,
+      "positive_rate": 1.0
+    },
+    "eq3_vs_plain": {
+      "point_diff": 0.019284930773021847,
+      "diff_ci95": [
+        0.016488270910009945,
+        0.021885186849027523
+      ],
+      "p_one_sided_a_le_b": 0.0,
+      "positive_rate": 1.0
+    },
+    "eq3_vs_weighted": {
+      "point_diff": 0.0011879558708131621,
+      "diff_ci95": [
+        -0.0003083449695774135,
+        0.0028097900926025193
+      ],
+      "p_one_sided_a_le_b": 0.061,
+      "positive_rate": 0.939
+    }
+  }
+}

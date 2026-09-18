@@ -1,0 +1,54 @@
+{
+  "tuple": {
+    "iou": 0.55,
+    "mode": "weighted",
+    "min_models": 2,
+    "post_conf": 0.03
+  },
+  "n_images_U": 14190,
+  "n_fused": 343329,
+  "priors": {
+    "late": 1.0,
+    "midlate": 0.8,
+    "early": 0.65
+  },
+  "scorings": {
+    "plain": {
+      "map50": 0.6059550061946003,
+      "map50_95": 0.4070821383662359,
+      "per_class_ap50": {
+        "car": 0.8977,
+        "truck": 0.5572,
+        "bus": 0.8919,
+        "van": 0.3282,
+        "freight_car": 0.3548
+      }
+    },
+    "conf_only": {
+      "map50": 0.588368795630913,
+      "map50_95": 0.40159009384236266,
+      "per_class_ap50": {
+        "car": 0.8966,
+        "truck": 0.506,
+        "bus": 0.8792,
+        "van": 0.3191,
+        "freight_car": 0.3409
+      }
+    },
+    "eq3": {
+      "map50": 0.5920694111240115,
+      "map50_95": 0.4041324200531601,
+      "per_class_ap50": {
+        "car": 0.8965,
+        "truck": 0.5129,
+        "bus": 0.8821,
+        "van": 0.3232,
+        "freight_car": 0.3456
+      }
+    }
+  },
+  "delta_eq3_minus_plain_pp": -0.2949718313075833,
+  "delta_eq3_minus_conf_only_pp": 0.25423262107974187,
+  "gate_threshold_pp": 0.3,
+  "gate_passed": false
+}
