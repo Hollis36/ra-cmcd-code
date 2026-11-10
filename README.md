@@ -33,5 +33,10 @@ Local absolute paths have been replaced by the placeholders `<PAPER_ROOT>`, `<YO
 
 ## Licence
 
-The patch in `patches/` derives from the YOLOv11-RGBT fork and from Ultralytics, both AGPL-3.0, and inherits that
-licence. A licence for the remaining code will be added with the published version of the paper.
+- **`patches/`** derives from the YOLOv11-RGBT fork and from Ultralytics, both AGPL-3.0, and inherits that licence;
+  see [`patches/LICENSE`](patches/LICENSE).
+- **Everything else** (scripts, configs and result records in `experiments/`) is released under the MIT License; see
+  [`LICENSE`](LICENSE).
+
+Running the scripts requires the AGPL-3.0 Ultralytics / YOLOv11-RGBT code, which is not redistributed here and stays
+under its own licence. If you use this code or its results, please cite the paper.
