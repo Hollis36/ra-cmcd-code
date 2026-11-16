@@ -1,7 +1,7 @@
 # RA-CMCD -- reliability-aware cross-model consensus distillation
 
 Code and result records for *Reliability-Aware Cross-Model Consensus Distillation for Small-Target Detection in
-RGB-Thermal Anti-UAV Surveillance* (Peifu Zhang, Han Xu, Ruichan Lv, Xidian University). The manuscript is under
+RGB-Thermal Anti-UAV Surveillance*. The manuscript is under
 review; this repository is the reproducibility artifact referenced by its data-availability statement.
 
 ## Contents
